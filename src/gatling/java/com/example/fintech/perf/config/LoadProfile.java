@@ -21,21 +21,28 @@ public final class LoadProfile {
     // utility class
   }
 
-  public static OpenInjectionStep[] userInjection(PerfProfile profile, int scale) {
+  public static OpenInjectionStep[] userInjection(PerfProfile profile, int scale, int durationMultiplier) {
+    int safeScale = Math.max(1, scale);
+    int safeDurationMultiplier = Math.max(1, durationMultiplier);
+
     return switch (profile) {
       case SMOKE -> new OpenInjectionStep[]{
-          rampUsers(5 * scale).during(Duration.ofSeconds(20)),
-          constantUsersPerSec(2.0 * scale).during(Duration.ofSeconds(20))
+          rampUsers(5 * safeScale).during(seconds(20, safeDurationMultiplier)),
+          constantUsersPerSec(2.0 * safeScale).during(seconds(20, safeDurationMultiplier))
       };
       case BASELINE -> new OpenInjectionStep[]{
-          rampUsers(20 * scale).during(Duration.ofSeconds(60)),
-          constantUsersPerSec(8.0 * scale).during(Duration.ofSeconds(120))
+          rampUsers(20 * safeScale).during(seconds(60, safeDurationMultiplier)),
+          constantUsersPerSec(8.0 * safeScale).during(seconds(120, safeDurationMultiplier))
       };
       case STRESS -> new OpenInjectionStep[]{
-          rampUsers(60 * scale).during(Duration.ofSeconds(120)),
-          constantUsersPerSec(20.0 * scale).during(Duration.ofSeconds(180))
+          rampUsers(60 * safeScale).during(seconds(120, safeDurationMultiplier)),
+          constantUsersPerSec(20.0 * safeScale).during(seconds(180, safeDurationMultiplier))
       };
     };
+  }
+
+  private static Duration seconds(int baseSeconds, int multiplier) {
+    return Duration.ofSeconds((long) baseSeconds * multiplier);
   }
 
   public static int p95Ms(PerfProfile profile) {

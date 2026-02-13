@@ -27,6 +27,7 @@ public class AccountFundingSimulation extends Simulation {
   private static final String DEFAULT_FUND_AMOUNT = "100.00";
   private static final String AUTH_BODY_TEMPLATE = AUTH_BODY_USERNAME_PASSWORD;
   private static final String FUND_BODY_TEMPLATE = fundAmount(DEFAULT_FUND_AMOUNT);
+  private static final double AMOUNT_TOLERANCE = 0.0001;
 
   private final PerfConfig config = PerfConfig.load();
 
@@ -51,19 +52,30 @@ public class AccountFundingSimulation extends Simulation {
           .header(AUTHORIZATION_HEADER, bearerSessionToken("token"))
           .body(StringBody(FUND_BODY_TEMPLATE))
           .check(status().is(200))
-          .check(jsonPath("$.balance").exists()))
+          .check(jsonPath("$.balance").exists())
+          .check(jsonPath("$.balance").saveAs("fundedBalance")))
       .exec(http("account_get_balance")
           .get(ApiEndpoints.ACCOUNT_BALANCE)
           .requestTimeout(config.requestTimeoutMs())
           .header(AUTHORIZATION_HEADER, bearerSessionToken("token"))
           .check(status().is(200))
-          .check(jsonPath("$.balance").exists()));
+          .check(jsonPath("$.balance").exists())
+          .check(jsonPath("$.balance").saveAs("balanceAfterFund")))
+      .exec(session -> {
+        double fundedBalance = parseAmount(session.getString("fundedBalance"));
+        double balanceAfterFund = parseAmount(session.getString("balanceAfterFund"));
+        boolean invalidAmounts = !Double.isFinite(fundedBalance) || !Double.isFinite(balanceAfterFund);
+        if (invalidAmounts || fundedBalance <= 0.0 || Math.abs(fundedBalance - balanceAfterFund) > AMOUNT_TOLERANCE) {
+          return session.markAsFailed();
+        }
+        return session;
+      });
 
   private final ScenarioBuilder fundingScenario = scenario("Account Funding Scenario")
       .exec(fundingJourney);
 
   private final PopulationBuilder population = fundingScenario.injectOpen(
-      LoadProfile.userInjection(config.profile(), 1));
+      LoadProfile.userInjection(config.profile(), config.loadScale(), config.durationMultiplier()));
 
   {
     setUp(population)
@@ -72,5 +84,13 @@ public class AccountFundingSimulation extends Simulation {
             global().failedRequests().percent().lte(LoadProfile.maxErrorRatePercent(config.profile())),
             global().responseTime().percentile3().lte(LoadProfile.p95Ms(config.profile()))
         );
+  }
+
+  private static double parseAmount(String value) {
+    try {
+      return Double.parseDouble(value);
+    } catch (Exception exception) {
+      return Double.NaN;
+    }
   }
 }

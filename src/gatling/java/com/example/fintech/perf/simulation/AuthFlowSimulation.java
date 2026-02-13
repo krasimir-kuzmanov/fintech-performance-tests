@@ -46,7 +46,7 @@ public class AuthFlowSimulation extends Simulation {
       .exec(registerAndLogin);
 
   private final PopulationBuilder population = authScenario.injectOpen(
-      LoadProfile.userInjection(config.profile(), 1));
+      LoadProfile.userInjection(config.profile(), config.loadScale(), config.durationMultiplier()));
 
   {
     setUp(population)

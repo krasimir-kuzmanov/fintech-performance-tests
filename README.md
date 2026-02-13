@@ -27,6 +27,8 @@ Configuration precedence:
 - `perf.profile` (`smoke|baseline|stress`) -> env: `PERF_PROFILE`
 - `api.baseUrl` -> env: `API_BASE_URL` (default `http://localhost:8080`)
 - `http.timeoutMs` -> env: `HTTP_TIMEOUT_MS` (default `10000`)
+- `perf.scale` -> env: `PERF_SCALE` (default `1`)
+- `perf.durationMultiplier` -> env: `PERF_DURATION_MULTIPLIER` (default `1`)
 
 ## Simulations
 - `com.example.fintech.perf.simulation.AuthFlowSimulation`
@@ -37,6 +39,16 @@ Configuration precedence:
 - `smoke`: p95 <= `150ms`, failed requests <= `0.5%`
 - `baseline`: p95 <= `300ms`, failed requests <= `1.0%`
 - `stress`: p95 <= `600ms`, failed requests <= `2.0%`
+
+## Calibration Guide
+- Local developer machine:
+  - `smoke` with `perf.scale=1`, `perf.durationMultiplier=1`
+  - `baseline` with `perf.scale=1`, `perf.durationMultiplier=1`
+- CI pull request:
+  - `smoke` with `perf.scale=1`, `perf.durationMultiplier=1`
+- Manual deeper validation:
+  - `baseline` with `perf.scale=2`, `perf.durationMultiplier=1`
+  - `stress` with `perf.scale=1`, `perf.durationMultiplier=1` (increase only if backend capacity is known)
 
 ## Run Locally
 Run one simulation:

@@ -85,7 +85,6 @@ Gatling reports are generated under:
 - Manual GitHub Actions runs always run `smoke`, and can enable `baseline`/`stress` via workflow inputs:
   - `run_baseline=true`
   - `run_stress=true`
-- Scheduled nightly runs execute `baseline` and `stress` profiles.
 
 ## Notes
 - The suite follows the same separation style as existing fintech test projects:

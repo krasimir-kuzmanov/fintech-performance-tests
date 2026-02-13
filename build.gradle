@@ -56,6 +56,68 @@ tasks.register('perfSmoke') {
   dependsOn 'perfSmokeAuth', 'perfSmokeAccount', 'perfSmokePayment'
 }
 
+tasks.register('perfSmokeWithSummary') {
+  group = 'performance'
+  description = 'Run all smoke simulations and print a compact report summary'
+  dependsOn 'perfSmoke'
+
+  doLast {
+    def reportsDir = file("$buildDir/reports/gatling")
+    if (!reportsDir.exists()) {
+      println 'No Gatling reports directory found.'
+      return
+    }
+
+    def runs = [
+        [key: 'auth', prefix: 'authflowsimulation-'],
+        [key: 'account', prefix: 'accountfundingsimulation-'],
+        [key: 'payment', prefix: 'paymentflowsimulation-']
+    ]
+
+    println ''
+    println 'Smoke Summary'
+    println '-------------'
+
+    runs.each { run ->
+      def latestDir = reportsDir
+          .listFiles()
+          ?.findAll { it.isDirectory() && it.name.startsWith(run.prefix) }
+          ?.sort { a, b -> b.name <=> a.name }
+          ?.find()
+
+      if (latestDir == null) {
+        println "${run.key.padRight(8)} : no report found"
+        return
+      }
+
+      def statsFile = new File(latestDir, 'js/stats.js')
+      if (!statsFile.exists()) {
+        println "${run.key.padRight(8)} : missing stats.js (${latestDir.name})"
+        return
+      }
+
+      def statsJs = statsFile.getText('UTF-8')
+      def globalSectionEnd = statsJs.indexOf('contents:')
+      def globalText = globalSectionEnd >= 0 ? statsJs.substring(0, globalSectionEnd) : statsJs
+
+      def extractValue = { String pattern, String label ->
+        def matcher = (globalText =~ pattern)
+        if (!matcher.find()) {
+          throw new GradleException("Unable to parse ${label} from ${statsFile.absolutePath}")
+        }
+        return matcher.group(1)
+      }
+
+      def total = extractValue(/"numberOfRequests"\s*:\s*\{[^}]*"total"\s*:\s*"([^"]+)"/, 'total requests')
+      def failed = extractValue(/"numberOfRequests"\s*:\s*\{[^}]*"ko"\s*:\s*"([^"]+)"/, 'failed requests')
+      def p95 = extractValue(/"percentiles3"\s*:\s*\{[^}]*"total"\s*:\s*"([^"]+)"/, 'p95')
+      def reportPath = new File(latestDir, 'index.html').absolutePath
+      println "${run.key.padRight(8)} : total=${total}, failed=${failed}, p95=${p95}ms"
+      println "           report=${reportPath}"
+    }
+  }
+}
+
 tasks.register('perfBaseline') {
   group = 'performance'
   description = 'Run all baseline profile simulations'

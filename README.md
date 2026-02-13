@@ -87,6 +87,14 @@ Run all stress simulations:
 Gatling reports are generated under:
 - `build/reports/gatling`
 
+## How To Read Reports
+- Start with `Global > Response Time > percentile3 (p95)` and `Global > Failed Requests %`.
+- Then check request-level entries for key operations:
+  - auth flow: `auth.register`, `auth.login`
+  - funding flow: `funding.account.fund`, `funding.account.balance`
+  - payment flow: `payment.transfer`, `payment.payer.balance`
+- Compare the same request names across runs to detect regressions.
+
 ## CI
 - Pull requests run one job with `smoke` profile across all simulations (`auth`, `account`, `payment`).
 - Manual GitHub Actions runs allow selecting:

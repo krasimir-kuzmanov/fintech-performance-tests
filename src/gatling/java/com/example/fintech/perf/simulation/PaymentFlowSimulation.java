@@ -10,6 +10,7 @@ import io.gatling.javaapi.core.ScenarioBuilder;
 import io.gatling.javaapi.core.Simulation;
 
 import static io.gatling.javaapi.core.CoreDsl.StringBody;
+import static io.gatling.javaapi.core.CoreDsl.details;
 import static io.gatling.javaapi.core.CoreDsl.exec;
 import static io.gatling.javaapi.core.CoreDsl.global;
 import static io.gatling.javaapi.core.CoreDsl.jsonPath;
@@ -31,6 +32,13 @@ public class PaymentFlowSimulation extends Simulation {
   private static final String PAYEE_AUTH_BODY_TEMPLATE = auth("payeeUsername", "password");
   private static final String FUND_BODY_TEMPLATE = fundAmount(DEFAULT_FUND_AMOUNT);
   private static final String PAYMENT_BODY_TEMPLATE = payment("payerAccountId", "payeeAccountId", DEFAULT_PAYMENT_AMOUNT);
+  private static final String REQ_PAYER_REGISTER = "payment.payer.register";
+  private static final String REQ_PAYEE_REGISTER = "payment.payee.register";
+  private static final String REQ_PAYER_LOGIN = "payment.payer.login";
+  private static final String REQ_FUND_PAYER = "payment.payer.fund";
+  private static final String REQ_TRANSFER = "payment.transfer";
+  private static final String REQ_PAYER_BALANCE = "payment.payer.balance";
+  private static final String REQ_PAYER_TRANSACTIONS = "payment.payer.transactions";
 
   private final PerfConfig config = PerfConfig.load();
 
@@ -38,33 +46,33 @@ public class PaymentFlowSimulation extends Simulation {
       .set("payerUsername", Users.username("perf_payer"))
       .set("payeeUsername", Users.username("perf_payee"))
       .set("password", DEFAULT_PASSWORD))
-      .exec(http("payment_register_payer")
+      .exec(http(REQ_PAYER_REGISTER)
           .post(ApiEndpoints.AUTH_REGISTER)
           .requestTimeout(config.requestTimeoutMs())
           .body(StringBody(PAYER_AUTH_BODY_TEMPLATE))
           .check(status().in(200, 201))
           .check(jsonPath("$.id").saveAs("payerAccountId")))
-      .exec(http("payment_register_payee")
+      .exec(http(REQ_PAYEE_REGISTER)
           .post(ApiEndpoints.AUTH_REGISTER)
           .requestTimeout(config.requestTimeoutMs())
           .body(StringBody(PAYEE_AUTH_BODY_TEMPLATE))
           .check(status().in(200, 201))
           .check(jsonPath("$.id").saveAs("payeeAccountId")))
-      .exec(http("payment_login_payer")
+      .exec(http(REQ_PAYER_LOGIN)
           .post(ApiEndpoints.AUTH_LOGIN)
           .requestTimeout(config.requestTimeoutMs())
           .body(StringBody(PAYER_AUTH_BODY_TEMPLATE))
           .check(status().is(200))
           .check(jsonPath("$.token").saveAs("payerToken")))
       .exec(session -> session.set("accountId", session.getString("payerAccountId")))
-      .exec(http("payment_fund_payer")
+      .exec(http(REQ_FUND_PAYER)
           .post(ApiEndpoints.ACCOUNT_FUND)
           .requestTimeout(config.requestTimeoutMs())
           .header(AUTHORIZATION_HEADER, bearerSessionToken("payerToken"))
           .body(StringBody(FUND_BODY_TEMPLATE))
           .check(status().is(200))
           .check(jsonPath("$.balance").exists()))
-      .exec(http("payment_transfer")
+      .exec(http(REQ_TRANSFER)
           .post(ApiEndpoints.TRANSACTION_PAYMENT)
           .requestTimeout(config.requestTimeoutMs())
           .header(AUTHORIZATION_HEADER, bearerSessionToken("payerToken"))
@@ -72,13 +80,13 @@ public class PaymentFlowSimulation extends Simulation {
           .check(status().is(200))
           .check(jsonPath("$.transactionId").exists())
           .check(jsonPath("$.status").is("SUCCESS")))
-      .exec(http("payment_get_payer_balance")
+      .exec(http(REQ_PAYER_BALANCE)
           .get(ApiEndpoints.ACCOUNT_BALANCE)
           .requestTimeout(config.requestTimeoutMs())
           .header(AUTHORIZATION_HEADER, bearerSessionToken("payerToken"))
           .check(status().is(200))
           .check(jsonPath("$.balance").exists()))
-      .exec(http("payment_get_payer_transactions")
+      .exec(http(REQ_PAYER_TRANSACTIONS)
           .get(ApiEndpoints.TRANSACTION_HISTORY)
           .requestTimeout(config.requestTimeoutMs())
           .header(AUTHORIZATION_HEADER, bearerSessionToken("payerToken"))
@@ -95,7 +103,10 @@ public class PaymentFlowSimulation extends Simulation {
         .protocols(BaseSimulation.httpProtocol(config))
         .assertions(
             global().failedRequests().percent().lte(LoadProfile.maxErrorRatePercent(config.profile())),
-            global().responseTime().percentile3().lte(LoadProfile.p95Ms(config.profile()))
+            global().responseTime().percentile3().lte(LoadProfile.p95Ms(config.profile())),
+            details(REQ_TRANSFER).failedRequests().percent().is(0.0),
+            details(REQ_TRANSFER).responseTime().percentile3().lte(LoadProfile.p95Ms(config.profile())),
+            details(REQ_PAYER_BALANCE).failedRequests().percent().is(0.0)
         );
   }
 }

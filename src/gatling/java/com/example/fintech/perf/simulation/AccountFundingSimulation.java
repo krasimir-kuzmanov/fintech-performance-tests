@@ -10,6 +10,7 @@ import io.gatling.javaapi.core.ScenarioBuilder;
 import io.gatling.javaapi.core.Simulation;
 
 import static io.gatling.javaapi.core.CoreDsl.StringBody;
+import static io.gatling.javaapi.core.CoreDsl.details;
 import static io.gatling.javaapi.core.CoreDsl.exec;
 import static io.gatling.javaapi.core.CoreDsl.global;
 import static io.gatling.javaapi.core.CoreDsl.jsonPath;
@@ -27,32 +28,36 @@ public class AccountFundingSimulation extends Simulation {
   private static final String DEFAULT_FUND_AMOUNT = "100.00";
   private static final String AUTH_BODY_TEMPLATE = AUTH_BODY_USERNAME_PASSWORD;
   private static final String FUND_BODY_TEMPLATE = fundAmount(DEFAULT_FUND_AMOUNT);
+  private static final String REQ_AUTH_REGISTER = "funding.auth.register";
+  private static final String REQ_AUTH_LOGIN = "funding.auth.login";
+  private static final String REQ_ACCOUNT_FUND = "funding.account.fund";
+  private static final String REQ_ACCOUNT_BALANCE = "funding.account.balance";
 
   private final PerfConfig config = PerfConfig.load();
 
   private final ChainBuilder fundingJourney = exec(session -> session
       .set("username", Users.username("perf_fund"))
       .set("password", DEFAULT_PASSWORD))
-      .exec(http("fund_register")
+      .exec(http(REQ_AUTH_REGISTER)
           .post(ApiEndpoints.AUTH_REGISTER)
           .requestTimeout(config.requestTimeoutMs())
           .body(StringBody(AUTH_BODY_TEMPLATE))
           .check(status().in(200, 201))
           .check(jsonPath("$.id").saveAs("accountId")))
-      .exec(http("fund_login")
+      .exec(http(REQ_AUTH_LOGIN)
           .post(ApiEndpoints.AUTH_LOGIN)
           .requestTimeout(config.requestTimeoutMs())
           .body(StringBody(AUTH_BODY_TEMPLATE))
           .check(status().is(200))
           .check(jsonPath("$.token").saveAs("token")))
-      .exec(http("account_fund")
+      .exec(http(REQ_ACCOUNT_FUND)
           .post(ApiEndpoints.ACCOUNT_FUND)
           .requestTimeout(config.requestTimeoutMs())
           .header(AUTHORIZATION_HEADER, bearerSessionToken("token"))
           .body(StringBody(FUND_BODY_TEMPLATE))
           .check(status().is(200))
           .check(jsonPath("$.balance").exists()))
-      .exec(http("account_get_balance")
+      .exec(http(REQ_ACCOUNT_BALANCE)
           .get(ApiEndpoints.ACCOUNT_BALANCE)
           .requestTimeout(config.requestTimeoutMs())
           .header(AUTHORIZATION_HEADER, bearerSessionToken("token"))
@@ -70,7 +75,9 @@ public class AccountFundingSimulation extends Simulation {
         .protocols(BaseSimulation.httpProtocol(config))
         .assertions(
             global().failedRequests().percent().lte(LoadProfile.maxErrorRatePercent(config.profile())),
-            global().responseTime().percentile3().lte(LoadProfile.p95Ms(config.profile()))
+            global().responseTime().percentile3().lte(LoadProfile.p95Ms(config.profile())),
+            details(REQ_ACCOUNT_FUND).failedRequests().percent().is(0.0),
+            details(REQ_ACCOUNT_BALANCE).failedRequests().percent().is(0.0)
         );
   }
 

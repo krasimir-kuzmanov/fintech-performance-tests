@@ -17,19 +17,16 @@ public final class PerfConfig {
 
   private final PerfProfile profile;
   private final String apiBaseUrl;
-  private final int requestTimeoutMs;
-  private final int loadScale;
+  private final RuntimeTuning runtimeTuning;
 
   private PerfConfig(
       PerfProfile profile,
       String apiBaseUrl,
-      int requestTimeoutMs,
-      int loadScale
+      RuntimeTuning runtimeTuning
   ) {
     this.profile = profile;
     this.apiBaseUrl = apiBaseUrl;
-    this.requestTimeoutMs = requestTimeoutMs;
-    this.loadScale = loadScale;
+    this.runtimeTuning = runtimeTuning;
   }
 
   public static PerfConfig load() {
@@ -37,12 +34,11 @@ public final class PerfConfig {
     String apiBaseUrl = read(Keys.API_BASE_URL, Envs.API_BASE_URL, DEFAULT_API_BASE_URL);
     int timeoutMs = readInt(Keys.HTTP_TIMEOUT_MS, Envs.HTTP_TIMEOUT_MS, DEFAULT_REQUEST_TIMEOUT_MS);
     int loadScale = readInt(Keys.LOAD_SCALE, Envs.LOAD_SCALE, DEFAULT_LOAD_SCALE);
-
-    return new PerfConfig(
-        profile,
-        apiBaseUrl,
+    RuntimeTuning runtimeTuning = new RuntimeTuning(
         timeoutMs,
         sanitizePositive(loadScale, DEFAULT_LOAD_SCALE));
+
+    return new PerfConfig(profile, apiBaseUrl, runtimeTuning);
   }
 
   public PerfProfile profile() {
@@ -54,11 +50,11 @@ public final class PerfConfig {
   }
 
   public int requestTimeoutMs() {
-    return requestTimeoutMs;
+    return runtimeTuning.requestTimeoutMs();
   }
 
   public int loadScale() {
-    return loadScale;
+    return runtimeTuning.loadScale();
   }
 
   private static String read(String systemProperty, String envVar, String defaultValue) {
@@ -137,5 +133,8 @@ public final class PerfConfig {
     private Envs() {
       // constants holder
     }
+  }
+
+  private record RuntimeTuning(int requestTimeoutMs, int loadScale) {
   }
 }

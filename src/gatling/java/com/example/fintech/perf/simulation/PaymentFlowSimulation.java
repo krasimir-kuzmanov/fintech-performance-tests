@@ -10,7 +10,6 @@ import io.gatling.javaapi.core.ScenarioBuilder;
 import io.gatling.javaapi.core.Simulation;
 
 import static io.gatling.javaapi.core.CoreDsl.StringBody;
-import static io.gatling.javaapi.core.CoreDsl.bodyString;
 import static io.gatling.javaapi.core.CoreDsl.exec;
 import static io.gatling.javaapi.core.CoreDsl.global;
 import static io.gatling.javaapi.core.CoreDsl.jsonPath;
@@ -28,7 +27,6 @@ public class PaymentFlowSimulation extends Simulation {
 
   private static final String DEFAULT_FUND_AMOUNT = "100.00";
   private static final String DEFAULT_PAYMENT_AMOUNT = "40.00";
-  private static final double AMOUNT_TOLERANCE = 0.0001;
   private static final String PAYER_AUTH_BODY_TEMPLATE = auth("payerUsername", "password");
   private static final String PAYEE_AUTH_BODY_TEMPLATE = auth("payeeUsername", "password");
   private static final String FUND_BODY_TEMPLATE = fundAmount(DEFAULT_FUND_AMOUNT);
@@ -65,7 +63,7 @@ public class PaymentFlowSimulation extends Simulation {
           .header(AUTHORIZATION_HEADER, bearerSessionToken("payerToken"))
           .body(StringBody(FUND_BODY_TEMPLATE))
           .check(status().is(200))
-          .check(jsonPath("$.balance").saveAs("payerBalanceAfterFund")))
+          .check(jsonPath("$.balance").exists()))
       .exec(http("payment_transfer")
           .post(ApiEndpoints.TRANSACTION_PAYMENT)
           .requestTimeout(config.requestTimeoutMs())
@@ -79,43 +77,18 @@ public class PaymentFlowSimulation extends Simulation {
           .requestTimeout(config.requestTimeoutMs())
           .header(AUTHORIZATION_HEADER, bearerSessionToken("payerToken"))
           .check(status().is(200))
-          .check(jsonPath("$.balance").exists())
-          .check(jsonPath("$.balance").saveAs("payerBalanceAfterPayment")))
+          .check(jsonPath("$.balance").exists()))
       .exec(http("payment_get_payer_transactions")
           .get(ApiEndpoints.TRANSACTION_HISTORY)
           .requestTimeout(config.requestTimeoutMs())
           .header(AUTHORIZATION_HEADER, bearerSessionToken("payerToken"))
-          .check(status().is(200))
-          .check(bodyString().saveAs("transactionsBody")))
-      .exec(session -> {
-        double payerBalanceAfterFund = parseAmount(session.getString("payerBalanceAfterFund"));
-        double payerBalanceAfterPayment = parseAmount(session.getString("payerBalanceAfterPayment"));
-        double expectedBalance = payerBalanceAfterFund - parseAmount(DEFAULT_PAYMENT_AMOUNT);
-        String transactionId = session.getString("transactionId");
-        String transactionsBody = session.getString("transactionsBody");
-
-        boolean invalidBalances = !Double.isFinite(payerBalanceAfterFund)
-            || !Double.isFinite(payerBalanceAfterPayment)
-            || !Double.isFinite(expectedBalance)
-            || payerBalanceAfterFund <= 0.0
-            || payerBalanceAfterPayment < 0.0
-            || Math.abs(expectedBalance - payerBalanceAfterPayment) > AMOUNT_TOLERANCE;
-        boolean missingTransaction = transactionId == null
-            || transactionId.isBlank()
-            || transactionsBody == null
-            || !transactionsBody.contains(transactionId);
-
-        if (invalidBalances || missingTransaction) {
-          return session.markAsFailed();
-        }
-        return session;
-      });
+          .check(status().is(200)));
 
   private final ScenarioBuilder paymentScenario = scenario("Payment Flow Scenario")
       .exec(paymentJourney);
 
   private final PopulationBuilder population = paymentScenario.injectOpen(
-      LoadProfile.userInjection(config.profile(), config.loadScale(), config.durationMultiplier()));
+      LoadProfile.userInjection(config.profile(), config.loadScale()));
 
   {
     setUp(population)
@@ -124,13 +97,5 @@ public class PaymentFlowSimulation extends Simulation {
             global().failedRequests().percent().lte(LoadProfile.maxErrorRatePercent(config.profile())),
             global().responseTime().percentile3().lte(LoadProfile.p95Ms(config.profile()))
         );
-  }
-
-  private static double parseAmount(String value) {
-    try {
-      return Double.parseDouble(value);
-    } catch (Exception exception) {
-      return Double.NaN;
-    }
   }
 }

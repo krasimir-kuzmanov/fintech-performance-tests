@@ -2,8 +2,6 @@ package com.example.fintech.perf.config;
 
 import io.gatling.javaapi.core.OpenInjectionStep;
 
-import java.time.Duration;
-
 import static io.gatling.javaapi.core.CoreDsl.constantUsersPerSec;
 import static io.gatling.javaapi.core.CoreDsl.rampUsers;
 
@@ -21,28 +19,23 @@ public final class LoadProfile {
     // utility class
   }
 
-  public static OpenInjectionStep[] userInjection(PerfProfile profile, int scale, int durationMultiplier) {
+  public static OpenInjectionStep[] userInjection(PerfProfile profile, int scale) {
     int safeScale = Math.max(1, scale);
-    int safeDurationMultiplier = Math.max(1, durationMultiplier);
 
     return switch (profile) {
       case SMOKE -> new OpenInjectionStep[]{
-          rampUsers(5 * safeScale).during(seconds(20, safeDurationMultiplier)),
-          constantUsersPerSec(2.0 * safeScale).during(seconds(20, safeDurationMultiplier))
+          rampUsers(5 * safeScale).during(20),
+          constantUsersPerSec(2.0 * safeScale).during(20)
       };
       case BASELINE -> new OpenInjectionStep[]{
-          rampUsers(20 * safeScale).during(seconds(60, safeDurationMultiplier)),
-          constantUsersPerSec(8.0 * safeScale).during(seconds(120, safeDurationMultiplier))
+          rampUsers(20 * safeScale).during(60),
+          constantUsersPerSec(8.0 * safeScale).during(120)
       };
       case STRESS -> new OpenInjectionStep[]{
-          rampUsers(60 * safeScale).during(seconds(120, safeDurationMultiplier)),
-          constantUsersPerSec(20.0 * safeScale).during(seconds(180, safeDurationMultiplier))
+          rampUsers(60 * safeScale).during(120),
+          constantUsersPerSec(20.0 * safeScale).during(180)
       };
     };
-  }
-
-  private static Duration seconds(int baseSeconds, int multiplier) {
-    return Duration.ofSeconds((long) baseSeconds * multiplier);
   }
 
   public static int p95Ms(PerfProfile profile) {

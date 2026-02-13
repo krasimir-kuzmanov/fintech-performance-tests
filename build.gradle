@@ -1,0 +1,69 @@
+plugins {
+  id 'java'
+  id 'io.gatling.gradle' version '3.13.5.2'
+}
+
+import io.gatling.gradle.GatlingRunTask
+
+group = 'com.example.fintech'
+version = '0.1.0'
+description = 'fintech-performance-tests'
+
+java {
+  toolchain {
+    languageVersion = JavaLanguageVersion.of(21)
+  }
+}
+
+repositories {
+  mavenCentral()
+}
+
+dependencies {
+  gatlingImplementation 'io.gatling:gatling-core-java:3.13.5'
+  gatlingImplementation 'io.gatling:gatling-http-java:3.13.5'
+}
+
+tasks.withType(JavaCompile).configureEach {
+  options.encoding = 'UTF-8'
+}
+
+def registerPerfRunTask = { String taskName, String profile, String simulationClass ->
+  tasks.register(taskName, GatlingRunTask) {
+    group = 'performance'
+    description = "Run ${simulationClass} with ${profile} profile"
+    nonInteractive = true
+    simulationClassName = simulationClass
+    systemProperties = ['perf.profile': profile]
+  }
+}
+
+registerPerfRunTask('perfSmokeAuth', 'smoke', 'com.example.fintech.perf.simulation.AuthFlowSimulation')
+registerPerfRunTask('perfSmokeAccount', 'smoke', 'com.example.fintech.perf.simulation.AccountFundingSimulation')
+registerPerfRunTask('perfSmokePayment', 'smoke', 'com.example.fintech.perf.simulation.PaymentFlowSimulation')
+
+registerPerfRunTask('perfBaselineAuth', 'baseline', 'com.example.fintech.perf.simulation.AuthFlowSimulation')
+registerPerfRunTask('perfBaselineAccount', 'baseline', 'com.example.fintech.perf.simulation.AccountFundingSimulation')
+registerPerfRunTask('perfBaselinePayment', 'baseline', 'com.example.fintech.perf.simulation.PaymentFlowSimulation')
+
+registerPerfRunTask('perfStressAuth', 'stress', 'com.example.fintech.perf.simulation.AuthFlowSimulation')
+registerPerfRunTask('perfStressAccount', 'stress', 'com.example.fintech.perf.simulation.AccountFundingSimulation')
+registerPerfRunTask('perfStressPayment', 'stress', 'com.example.fintech.perf.simulation.PaymentFlowSimulation')
+
+tasks.register('perfSmoke') {
+  group = 'performance'
+  description = 'Run all smoke profile simulations'
+  dependsOn 'perfSmokeAuth', 'perfSmokeAccount', 'perfSmokePayment'
+}
+
+tasks.register('perfBaseline') {
+  group = 'performance'
+  description = 'Run all baseline profile simulations'
+  dependsOn 'perfBaselineAuth', 'perfBaselineAccount', 'perfBaselinePayment'
+}
+
+tasks.register('perfStress') {
+  group = 'performance'
+  description = 'Run all stress profile simulations'
+  dependsOn 'perfStressAuth', 'perfStressAccount', 'perfStressPayment'
+}

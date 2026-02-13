@@ -3,7 +3,6 @@ package com.example.fintech.perf.simulation;
 import com.example.fintech.perf.config.LoadProfile;
 import com.example.fintech.perf.config.PerfConfig;
 import com.example.fintech.perf.constants.ApiEndpoints;
-import com.example.fintech.perf.constants.RequestNames;
 import com.example.fintech.perf.util.Users;
 import io.gatling.javaapi.core.ChainBuilder;
 import io.gatling.javaapi.core.PopulationBuilder;
@@ -19,6 +18,8 @@ import static io.gatling.javaapi.core.CoreDsl.scenario;
 import static io.gatling.javaapi.http.HttpDsl.http;
 import static io.gatling.javaapi.http.HttpDsl.status;
 import static com.example.fintech.perf.constants.RequestBodyTemplates.AUTH_BODY_USERNAME_PASSWORD;
+import static com.example.fintech.perf.constants.RequestNames.Auth.LOGIN;
+import static com.example.fintech.perf.constants.RequestNames.Auth.REGISTER;
 import static com.example.fintech.perf.constants.TestDataConstants.DEFAULT_PASSWORD;
 
 public class AuthFlowSimulation extends Simulation {
@@ -28,13 +29,13 @@ public class AuthFlowSimulation extends Simulation {
   private final ChainBuilder registerAndLogin = exec(session -> session
       .set("username", Users.username("perf_auth"))
       .set("password", DEFAULT_PASSWORD))
-      .exec(http(RequestNames.Auth.REGISTER)
+      .exec(http(REGISTER)
           .post(ApiEndpoints.AUTH_REGISTER)
           .requestTimeout(config.requestTimeoutMs())
           .body(StringBody(AUTH_BODY_USERNAME_PASSWORD))
           .check(status().in(200, 201))
           .check(jsonPath("$.id").exists()))
-      .exec(http(RequestNames.Auth.LOGIN)
+      .exec(http(LOGIN)
           .post(ApiEndpoints.AUTH_LOGIN)
           .requestTimeout(config.requestTimeoutMs())
           .body(StringBody(AUTH_BODY_USERNAME_PASSWORD))
@@ -54,8 +55,8 @@ public class AuthFlowSimulation extends Simulation {
         .assertions(
             global().failedRequests().percent().lte(LoadProfile.maxErrorRatePercent(config.profile())),
             global().responseTime().percentile3().lte(LoadProfile.p95Ms(config.profile())),
-            details(RequestNames.Auth.REGISTER).failedRequests().percent().is(0.0),
-            details(RequestNames.Auth.LOGIN).failedRequests().percent().is(0.0)
+            details(REGISTER).failedRequests().percent().is(0.0),
+            details(LOGIN).failedRequests().percent().is(0.0)
         );
   }
 }

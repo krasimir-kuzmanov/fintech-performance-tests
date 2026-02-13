@@ -81,10 +81,10 @@ Gatling reports are generated under:
 - `build/reports/gatling`
 
 ## CI
-- Pull requests run `smoke` profile simulations.
-- Manual GitHub Actions runs always run `smoke`, and can enable `baseline`/`stress` via workflow inputs:
-  - `run_baseline=true`
-  - `run_stress=true`
+- Pull requests run one job: `smoke` profile with `auth` simulation.
+- Manual GitHub Actions runs allow selecting:
+  - `profile`: `smoke|baseline|stress`
+  - `simulation`: `auth|account|payment`
 
 ## Notes
 - The suite follows the same separation style as existing fintech test projects:

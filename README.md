@@ -71,6 +71,12 @@ Run all three smoke simulations:
 ./gradlew perfSmoke
 ```
 
+Run all smoke simulations with a compact summary:
+
+```bash
+./gradlew perfSmokeWithSummary
+```
+
 Run all baseline simulations:
 
 ```bash

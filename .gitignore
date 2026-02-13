@@ -1,3 +1,15 @@
+.gradle/
+build/
+out/
+bin/
+.idea/
+*.iml
+
+# Gatling run outputs
+results/
+user-files/
+target/
+
 # Compiled class file
 *.class
 

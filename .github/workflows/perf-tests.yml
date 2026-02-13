@@ -23,57 +23,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  performance:
-    if: >-
-      (github.event_name == 'pull_request' && matrix.profile == 'smoke') ||
-      (github.event_name == 'workflow_dispatch' &&
-      (matrix.profile == 'smoke' ||
-      (matrix.profile == 'baseline' && inputs.run_baseline == 'true') ||
-      (matrix.profile == 'stress' && inputs.run_stress == 'true')))
+  smoke:
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    timeout-minutes: ${{ matrix.timeout_minutes }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         include:
-          - profile: smoke
-            timeout_minutes: 30
-            simulation_id: auth
+          - simulation_id: auth
             simulation_class: com.example.fintech.perf.simulation.AuthFlowSimulation
-          - profile: smoke
-            timeout_minutes: 30
-            simulation_id: account
+          - simulation_id: account
             simulation_class: com.example.fintech.perf.simulation.AccountFundingSimulation
-          - profile: smoke
-            timeout_minutes: 30
-            simulation_id: payment
-            simulation_class: com.example.fintech.perf.simulation.PaymentFlowSimulation
-          - profile: baseline
-            timeout_minutes: 45
-            simulation_id: auth
-            simulation_class: com.example.fintech.perf.simulation.AuthFlowSimulation
-          - profile: baseline
-            timeout_minutes: 45
-            simulation_id: account
-            simulation_class: com.example.fintech.perf.simulation.AccountFundingSimulation
-          - profile: baseline
-            timeout_minutes: 45
-            simulation_id: payment
-            simulation_class: com.example.fintech.perf.simulation.PaymentFlowSimulation
-          - profile: stress
-            timeout_minutes: 60
-            simulation_id: auth
-            simulation_class: com.example.fintech.perf.simulation.AuthFlowSimulation
-          - profile: stress
-            timeout_minutes: 60
-            simulation_id: account
-            simulation_class: com.example.fintech.perf.simulation.AccountFundingSimulation
-          - profile: stress
-            timeout_minutes: 60
-            simulation_id: payment
+          - simulation_id: payment
             simulation_class: com.example.fintech.perf.simulation.PaymentFlowSimulation
 
-    name: ${{ matrix.profile }}-${{ matrix.simulation_id }}
+    name: smoke-${{ matrix.simulation_id }}
 
     steps:
       - name: Checkout performance tests
@@ -122,20 +87,194 @@ jobs:
           exit 1
 
       - name: Run simulation
-        run: ./gradlew gatlingRun --non-interactive --simulation ${{ matrix.simulation_class }} -Dperf.profile=${{ matrix.profile }}
+        run: ./gradlew gatlingRun --non-interactive --simulation ${{ matrix.simulation_class }} -Dperf.profile=smoke
 
       - name: Upload Gatling reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: perf-reports-${{ matrix.profile }}-${{ matrix.simulation_id }}
+          name: perf-reports-smoke-${{ matrix.simulation_id }}
           path: build/reports/gatling
 
       - name: Upload backend logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: backend-log-${{ matrix.profile }}-${{ matrix.simulation_id }}
+          name: backend-log-smoke-${{ matrix.simulation_id }}
+          path: fintech-backend/backend.log
+
+      - name: Stop backend
+        if: always()
+        run: |
+          if [ -f fintech-backend/backend.pid ]; then
+            kill "$(cat fintech-backend/backend.pid)" || true
+          fi
+
+  baseline:
+    if: github.event_name == 'workflow_dispatch' && inputs.run_baseline == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - simulation_id: auth
+            simulation_class: com.example.fintech.perf.simulation.AuthFlowSimulation
+          - simulation_id: account
+            simulation_class: com.example.fintech.perf.simulation.AccountFundingSimulation
+          - simulation_id: payment
+            simulation_class: com.example.fintech.perf.simulation.PaymentFlowSimulation
+
+    name: baseline-${{ matrix.simulation_id }}
+
+    steps:
+      - name: Checkout performance tests
+        uses: actions/checkout@v4
+
+      - name: Checkout backend
+        uses: actions/checkout@v4
+        with:
+          repository: krasimir-kuzmanov/fintech-backend
+          path: fintech-backend
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Make wrappers executable
+        run: |
+          chmod +x ./gradlew
+          chmod +x fintech-backend/gradlew
+
+      - name: Build backend
+        run: |
+          cd fintech-backend
+          ./gradlew clean build -x test
+
+      - name: Start backend
+        run: |
+          cd fintech-backend
+          nohup ./gradlew bootRun > backend.log 2>&1 &
+          echo $! > backend.pid
+
+      - name: Wait for backend health
+        run: |
+          for i in {1..60}; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/actuator/health || true)
+            echo "Attempt $i backend health status: $code"
+            if [ "$code" = "200" ]; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Backend did not become healthy in time"
+          exit 1
+
+      - name: Run simulation
+        run: ./gradlew gatlingRun --non-interactive --simulation ${{ matrix.simulation_class }} -Dperf.profile=baseline
+
+      - name: Upload Gatling reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-reports-baseline-${{ matrix.simulation_id }}
+          path: build/reports/gatling
+
+      - name: Upload backend logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-log-baseline-${{ matrix.simulation_id }}
+          path: fintech-backend/backend.log
+
+      - name: Stop backend
+        if: always()
+        run: |
+          if [ -f fintech-backend/backend.pid ]; then
+            kill "$(cat fintech-backend/backend.pid)" || true
+          fi
+
+  stress:
+    if: github.event_name == 'workflow_dispatch' && inputs.run_stress == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - simulation_id: auth
+            simulation_class: com.example.fintech.perf.simulation.AuthFlowSimulation
+          - simulation_id: account
+            simulation_class: com.example.fintech.perf.simulation.AccountFundingSimulation
+          - simulation_id: payment
+            simulation_class: com.example.fintech.perf.simulation.PaymentFlowSimulation
+
+    name: stress-${{ matrix.simulation_id }}
+
+    steps:
+      - name: Checkout performance tests
+        uses: actions/checkout@v4
+
+      - name: Checkout backend
+        uses: actions/checkout@v4
+        with:
+          repository: krasimir-kuzmanov/fintech-backend
+          path: fintech-backend
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Make wrappers executable
+        run: |
+          chmod +x ./gradlew
+          chmod +x fintech-backend/gradlew
+
+      - name: Build backend
+        run: |
+          cd fintech-backend
+          ./gradlew clean build -x test
+
+      - name: Start backend
+        run: |
+          cd fintech-backend
+          nohup ./gradlew bootRun > backend.log 2>&1 &
+          echo $! > backend.pid
+
+      - name: Wait for backend health
+        run: |
+          for i in {1..60}; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/actuator/health || true)
+            echo "Attempt $i backend health status: $code"
+            if [ "$code" = "200" ]; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Backend did not become healthy in time"
+          exit 1
+
+      - name: Run simulation
+        run: ./gradlew gatlingRun --non-interactive --simulation ${{ matrix.simulation_class }} -Dperf.profile=stress
+
+      - name: Upload Gatling reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-reports-stress-${{ matrix.simulation_id }}
+          path: build/reports/gatling
+
+      - name: Upload backend logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-log-stress-${{ matrix.simulation_id }}
           path: fintech-backend/backend.log
 
       - name: Stop backend

@@ -11,29 +11,34 @@ public final class PerfConfig {
 
   private static final String DEFAULT_API_BASE_URL = "http://localhost:8080";
   private static final int DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
+  private static final int DEFAULT_LOAD_SCALE = 1;
 
   private static final Properties FILE_PROPERTIES = loadFileProperties();
 
   private final PerfProfile profile;
   private final String apiBaseUrl;
-  private final int requestTimeoutMs;
+  private final RuntimeTuning runtimeTuning;
 
   private PerfConfig(
       PerfProfile profile,
       String apiBaseUrl,
-      int requestTimeoutMs
+      RuntimeTuning runtimeTuning
   ) {
     this.profile = profile;
     this.apiBaseUrl = apiBaseUrl;
-    this.requestTimeoutMs = requestTimeoutMs;
+    this.runtimeTuning = runtimeTuning;
   }
 
   public static PerfConfig load() {
     PerfProfile profile = PerfProfile.from(read(Keys.PROFILE, Envs.PROFILE, DEFAULT_PROFILE));
     String apiBaseUrl = read(Keys.API_BASE_URL, Envs.API_BASE_URL, DEFAULT_API_BASE_URL);
     int timeoutMs = readInt(Keys.HTTP_TIMEOUT_MS, Envs.HTTP_TIMEOUT_MS, DEFAULT_REQUEST_TIMEOUT_MS);
+    int loadScale = readInt(Keys.LOAD_SCALE, Envs.LOAD_SCALE, DEFAULT_LOAD_SCALE);
+    RuntimeTuning runtimeTuning = new RuntimeTuning(
+        timeoutMs,
+        sanitizePositive(loadScale, DEFAULT_LOAD_SCALE));
 
-    return new PerfConfig(profile, apiBaseUrl, timeoutMs);
+    return new PerfConfig(profile, apiBaseUrl, runtimeTuning);
   }
 
   public PerfProfile profile() {
@@ -45,7 +50,11 @@ public final class PerfConfig {
   }
 
   public int requestTimeoutMs() {
-    return requestTimeoutMs;
+    return runtimeTuning.requestTimeoutMs();
+  }
+
+  public int loadScale() {
+    return runtimeTuning.loadScale();
   }
 
   private static String read(String systemProperty, String envVar, String defaultValue) {
@@ -86,6 +95,10 @@ public final class PerfConfig {
     }
   }
 
+  private static int sanitizePositive(int value, int defaultValue) {
+    return value > 0 ? value : defaultValue;
+  }
+
   private static Properties loadFileProperties() {
     Properties properties = new Properties();
 
@@ -104,6 +117,7 @@ public final class PerfConfig {
     private static final String PROFILE = "perf.profile";
     private static final String API_BASE_URL = "api.baseUrl";
     private static final String HTTP_TIMEOUT_MS = "http.timeoutMs";
+    private static final String LOAD_SCALE = "perf.scale";
 
     private Keys() {
       // constants holder
@@ -114,9 +128,13 @@ public final class PerfConfig {
     private static final String PROFILE = "PERF_PROFILE";
     private static final String API_BASE_URL = "API_BASE_URL";
     private static final String HTTP_TIMEOUT_MS = "HTTP_TIMEOUT_MS";
+    private static final String LOAD_SCALE = "PERF_SCALE";
 
     private Envs() {
       // constants holder
     }
+  }
+
+  private record RuntimeTuning(int requestTimeoutMs, int loadScale) {
   }
 }

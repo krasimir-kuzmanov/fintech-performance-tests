@@ -2,8 +2,6 @@ package com.example.fintech.perf.config;
 
 import io.gatling.javaapi.core.OpenInjectionStep;
 
-import java.time.Duration;
-
 import static io.gatling.javaapi.core.CoreDsl.constantUsersPerSec;
 import static io.gatling.javaapi.core.CoreDsl.rampUsers;
 
@@ -22,18 +20,20 @@ public final class LoadProfile {
   }
 
   public static OpenInjectionStep[] userInjection(PerfProfile profile, int scale) {
+    int safeScale = Math.max(1, scale);
+
     return switch (profile) {
       case SMOKE -> new OpenInjectionStep[]{
-          rampUsers(5 * scale).during(Duration.ofSeconds(20)),
-          constantUsersPerSec(2.0 * scale).during(Duration.ofSeconds(20))
+          rampUsers(5 * safeScale).during(20),
+          constantUsersPerSec(2.0 * safeScale).during(20)
       };
       case BASELINE -> new OpenInjectionStep[]{
-          rampUsers(20 * scale).during(Duration.ofSeconds(60)),
-          constantUsersPerSec(8.0 * scale).during(Duration.ofSeconds(120))
+          rampUsers(20 * safeScale).during(60),
+          constantUsersPerSec(8.0 * safeScale).during(120)
       };
       case STRESS -> new OpenInjectionStep[]{
-          rampUsers(60 * scale).during(Duration.ofSeconds(120)),
-          constantUsersPerSec(20.0 * scale).during(Duration.ofSeconds(180))
+          rampUsers(60 * safeScale).during(120),
+          constantUsersPerSec(20.0 * safeScale).during(180)
       };
     };
   }

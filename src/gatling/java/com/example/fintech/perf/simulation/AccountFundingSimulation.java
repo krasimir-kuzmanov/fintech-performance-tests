@@ -63,7 +63,7 @@ public class AccountFundingSimulation extends Simulation {
       .exec(fundingJourney);
 
   private final PopulationBuilder population = fundingScenario.injectOpen(
-      LoadProfile.userInjection(config.profile(), 1));
+      LoadProfile.userInjection(config.profile(), config.loadScale()));
 
   {
     setUp(population)
@@ -73,4 +73,5 @@ public class AccountFundingSimulation extends Simulation {
             global().responseTime().percentile3().lte(LoadProfile.p95Ms(config.profile()))
         );
   }
+
 }

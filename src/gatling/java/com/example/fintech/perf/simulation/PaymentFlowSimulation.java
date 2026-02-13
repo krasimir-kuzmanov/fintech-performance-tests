@@ -62,7 +62,8 @@ public class PaymentFlowSimulation extends Simulation {
           .requestTimeout(config.requestTimeoutMs())
           .header(AUTHORIZATION_HEADER, bearerSessionToken("payerToken"))
           .body(StringBody(FUND_BODY_TEMPLATE))
-          .check(status().is(200)))
+          .check(status().is(200))
+          .check(jsonPath("$.balance").exists()))
       .exec(http("payment_transfer")
           .post(ApiEndpoints.TRANSACTION_PAYMENT)
           .requestTimeout(config.requestTimeoutMs())
@@ -87,7 +88,7 @@ public class PaymentFlowSimulation extends Simulation {
       .exec(paymentJourney);
 
   private final PopulationBuilder population = paymentScenario.injectOpen(
-      LoadProfile.userInjection(config.profile(), 1));
+      LoadProfile.userInjection(config.profile(), config.loadScale()));
 
   {
     setUp(population)
